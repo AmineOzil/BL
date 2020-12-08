@@ -3,7 +3,7 @@ A tool that automates LPSes injection on Angular, regarding specific constraints
 
 ## Installation : 
 - First of all we have to install ts-morph using **yarn** :
-	 `yarn add ts-morph typescript`
+`yarn add ts-morph typescript`
 
 ## Instantiation
 to instantiate our project, we need to manually specify the path to our *tsconfig.json* file :   
