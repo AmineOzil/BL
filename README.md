@@ -1,4 +1,4 @@
-# BL Loger
+# BL Logger
 A tool that automates LPSes injection on Angular, regarding specific constraints.
 
 ## Installation : 
