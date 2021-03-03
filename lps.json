@@ -1,0 +1,5 @@
+[   {"granularityType":"web request","granularityId":"aSimpleEmptyClass"},
+    {"granularityType":"method","granularityId":"anothermethod();helloer"},
+    {"granularityType":"basic block","granularityId":"methodWithSomeInstructions(param1:any,param2:any);helloer;1"},
+    {"granularityType":"basic block","granularityId":"methodWithSomeInstructions(param1:any,param2:any);helloer;2","position":"after"}
+]
