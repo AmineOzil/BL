@@ -1,0 +1,9 @@
+[{"granularityType":"web request","granularityId":"InputComponent"},
+    {"granularityType":"web request","granularityId":"ColorPipe"},
+    {"granularityType":"web request","granularityId":"SelectPerson"},
+    {"granularityType":"web request","granularityId":"ResearchPersons"},
+    {"granularityType":"web request","granularityId":"DeletePerson"},
+    {"granularityType":"web request","granularityId":"EditeurTagsComponent"}]
+
+
+    

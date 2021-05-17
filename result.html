@@ -1,0 +1,405 @@
+<html><head></head><body><div [ngstyle]="{'cursor': (currentUser.person.type_account=='Externe' ? 'not-allowed' : 'pointer')}" [ngclass]="{'active': open}" class="fab">
+  
+  <em *ngif="currentUser.person.type_account=='Interne' &amp;&amp; target!='Person' &amp;&amp; target!='Poste'" (click)="openModal()" class="material-icons fab-icon" id="EM add">
+    <img src="../../../../assets/icons/add.png" alt="" srcset="">
+  </em>
+  <div (mouseenter)="showDetailButton=true" (mouseleave)="showDetailButton=false" class="btn-extend-button" *ngif="currentUser.person.type_account=='Interne' &amp;&amp; (target=='Person' || target=='Poste')">
+    <em class="material-icons fab-icon">
+      <img src="../../../../assets/icons/add.png" alt="" srcset="">
+    </em>
+    <div [ngclass]="{'active': showDetailButton}" class="detail-buttons">
+      <em (click)="newPerson()" id="EM person-white"><img src="../../../../assets/icons/person-white.png" alt="" srcset=""></em>
+      <em (click)="newPoste()" id="EM streamline-icon-content-pen-1@40x40"><img src="../../../../../assets/icons/streamline-icon-content-pen-1@40x40.png" alt="" srcset=""></em>
+    </div>
+  </div>
+  <em [tooltip]="'Vous n\'êtes pas autorisé à effectuer cette action'" placement="top" show-delay="150" style="opacity: 0.7;cursor: not-allowed;" *ngif="currentUser.person.type_account=='Externe'" class="material-icons fab-icon">
+    <img src="../../../../assets/icons/add.png" alt="" srcset="">
+  </em>
+
+
+  <form [formgroup]="getForm()" *ngif="open" class="cntt-wrapper">
+    <div id="fab-hdr">
+      <img src="../../../../../assets/icons/person-white.png" alt="" srcset="">
+      <h3>{{headed}}</h3>
+      <em (click)="closeModal()" class="close-btn" id="EM add">
+        <img src="../../../../../assets/icons/add.png" alt="" srcset="">
+      </em>
+
+    </div>
+
+    <div *ngif="target=='Person'" class="cntt">
+
+      <div *ngif="error &amp;&amp; submitFormState" class="error-message">
+        <app-message [type]="'danger'" [title]="'Attention'" [message]="'L\'adresse mail renseignée est déja utilisée par une autre personne'"></app-message>    
+      </div>
+
+      <div formgroupname="person">
+        <div class="form-group-twin">
+
+          <app-input [error]="(newPersonForm.get('person').get('first_name').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="first_name" [intituleinput]="'Prénom'" [type]="'text'"></app-input>
+
+          <app-input [error]="(newPersonForm.get('person').get('last_name').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="last_name" [intituleinput]="'Nom'" [type]="'text'"></app-input>
+
+        </div>
+        
+        <app-input [error]="(newPersonForm.get('person').get('mail').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="mail" [intituleinput]="'Mail'" [type]="'email'"></app-input>
+
+        <!--<app-input [error]="(newPersonForm.get('person').get('type_account').errors!=null && submitFormState)" 
+        [style]="'grey'" 
+        formControlName="type_account" 
+        [intituleInput]="'Type de compte'" 
+        [labelResearch]="'Type_account'"  
+        [type]="'text'"></app-input>-->
+
+        <app-select-box [error]="(newPersonForm.get('person').get('type_account').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Type de compte'" [style]="'dark-full'" formcontrolname="type_account" [labelresearch]="'Type_account'"></app-select-box>
+  
+
+        <div class="form-array" formarrayname="situation" id="testing" *ngfor="let s of newPersonForm.get('person').get('situation')['controls']; let i = index">
+          <div class="" [formgroupname]="i">
+            <div class="head-deadline">
+              <h4>Situation {{i+1}}</h4>
+              <button class="btn-delete-person" type="button" (click)="deleteSituationToPerson($event,i)" id="BUTTON Supprimer">Supprimer</button>
+            </div>
+            <div class="form-group-twin">
+              <app-input [style]="'grey'" formcontrolname="start_date" [intituleinput]="'Date de début'" [type]="'date'">
+              </app-input>
+              <app-input [style]="'grey'" formcontrolname="end_date" [intituleinput]="'Date de fin'" [type]="'date'">
+              </app-input>
+            </div>
+            <!--<app-input
+              [style]="'grey'" 
+              formControlName="type_hiring" 
+              [intituleInput]="'Type'" 
+              [labelResearch]="'Type'" 
+              [type]="'text'">
+            </app-input>-->
+            <app-select-box [intituleselectbox]="'Type'" [style]="'dark-full'" formcontrolname="type_hiring" [labelresearch]="'Type'"></app-select-box>
+          </div>
+        </div>
+        <button class="btn-new-deadline" type="button" (click)="addNewSituationToPerson()" id="BUTTON Nouvelle situation">Nouvelle situation</button>
+
+        <!--<app-input [error]="(newPersonForm.get('person').get('bu').errors!=null && submitFormState)" 
+        [style]="'grey'" 
+        formControlName="bu" 
+        [intituleInput]="'Entité juridique'" 
+        [labelResearch]="'BU'"  
+        [type]="'text'"></app-input>-->
+
+        <app-select-box [error]="(newPersonForm.get('person').get('bu').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Entité juridique'" [style]="'dark-full'" formcontrolname="bu" [labelresearch]="'BU'"></app-select-box>
+
+        <app-input [error]="(newPersonForm.get('person').get('localisation').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="localisation" [intituleinput]="'Localisation'" [labelresearch]="'Localisation'" [type]="'text'"></app-input>
+
+        <div class="sharepoint-link">
+          <a (click)="sharePointConnect()" class="btn-sharepoint" id="A Sharepoint">
+            <img src="../../../../../assets/icons/sharepoint.png" width="25px" alt="">
+            <span>Sharepoint</span>
+          </a>
+        </div>
+        <section class="attachment-container" *ngif="attachment &amp;&amp; attachment.length!=0">
+          <a target="_blank" [href]="attach.split(' ')[0]" *ngfor="let attach of attachment; let i=index;" class="attachment">
+            <img src="../../../../../assets/icons/streamline-icon-attachment@40x40.png" width="15px" height="15px" alt="" srcset="">
+            <span>{{attach.split(" ").splice(1).join(" ")}}</span>
+            <img (click)="deleteAttachment($event,i)" style="opacity: 0.7;margin-left: 10px;" width="12px" src="../../../../assets/icons/close-red.png" alt="" srcset="" id="IMG close-red">
+          </a>
+        </section>
+
+        <!--[error]="(newPersonForm.get('person').get('contrat').errors!=null && submitFormState)" -->
+        <app-input [style]="'grey'" formcontrolname="contrat" [intituleinput]="'Contrat'" [labelresearch]="'Type_contrat'" [type]="'text'"></app-input>
+
+      </div>
+
+      <div formgroupname="links">
+        <app-input [error]="(newPersonForm.get('links').get('RESPONSABLE_OF').errors!=null &amp;&amp; submitFormState)" [labelresearch]="'Person'" [style]="'grey'" formcontrolname="RESPONSABLE_OF" [intituleinput]="'Responsable...'" [type]="'text'"></app-input>
+        <app-input [error]="(newPersonForm.get('links').get('CONTACT_OF').errors!=null &amp;&amp; submitFormState)" [labelresearch]="'Contact'" [style]="'grey'" formcontrolname="CONTACT_OF" [intituleinput]="'Contact...'" [type]="'text'"></app-input>
+        <app-input [error]="(newPersonForm.get('links').get('CO_ENC_OF').errors!=null &amp;&amp; submitFormState)" [labelresearch]="'Person'" [style]="'grey'" formcontrolname="CO_ENC_OF" [intituleinput]="'Co responsable...'" [type]="'text'"></app-input>
+      </div>
+
+    </div>
+
+    <div *ngif="target=='Poste'" class="cntt">
+
+      <div formgroupname="poste">
+        
+        <app-input [error]="(newPosteForm.get('poste').get('ref_my_bl').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="ref_my_bl" [intituleinput]="'Référence MyBL'" [type]="'text'"></app-input>
+
+        <app-input [error]="(newPosteForm.get('poste').get('title').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="title" [intituleinput]="'Titre du poste'" [type]="'text'"></app-input>
+
+        <app-input [style]="'grey'" formcontrolname="start_date" [intituleinput]="'Date de début'" [type]="'date'">
+        </app-input>
+
+        <app-select-box [error]="(newPosteForm.get('poste').get('type_hiring').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Type de poste'" [style]="'dark-full'" formcontrolname="type_hiring" [labelresearch]="'Type'"></app-select-box>
+
+        <app-select-box [error]="(newPosteForm.get('poste').get('statut_poste').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Statut'" [style]="'dark-full'" formcontrolname="statut_poste" [labelresearch]="'Statut_poste'"></app-select-box>
+
+        <app-select-box [error]="(newPosteForm.get('poste').get('contrat').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Type de contrat'" [style]="'dark-full'" formcontrolname="contrat" [labelresearch]="'Type_contrat'"></app-select-box>
+
+        <div class="sharepoint-link">
+          <a (click)="sharePointConnect()" class="btn-sharepoint" id="A Sharepoint">
+            <img src="../../../../../assets/icons/sharepoint.png" width="25px" alt="">
+            <span>Sharepoint</span>
+          </a>
+        </div>
+        <section class="attachment-container" *ngif="attachment &amp;&amp; attachment.length!=0">
+          <a target="_blank" [href]="attach.split(' ')[0]" *ngfor="let attach of attachment; let i=index;" class="attachment">
+            <img src="../../../../../assets/icons/streamline-icon-attachment@40x40.png" width="15px" height="15px" alt="" srcset="">
+            <span>{{attach.split(" ").splice(1).join(" ")}}</span>
+            <img (click)="deleteAttachment($event,i)" style="opacity: 0.7;margin-left: 10px;" width="12px" src="../../../../assets/icons/close-red.png" alt="" srcset="" id="IMG close-red">
+          </a>
+        </section>
+
+      </div>
+
+      <div formgroupname="links">
+        <app-input [error]="(newPosteForm.get('links').get('RESPONSABLE_OF').errors!=null &amp;&amp; submitFormState)" [labelresearch]="'Person'" [style]="'grey'" formcontrolname="RESPONSABLE_OF" [intituleinput]="'Responsable...'" [type]="'text'"></app-input>
+      </div>
+
+    </div>
+
+    <div *ngif="target=='Publication'" class="cntt">
+
+      <div formgroupname="publication">
+        <h3>Publication</h3>
+
+        <app-input [error]="(newPublicationForm.get('publication').get('programme_de_recherche').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="programme_de_recherche" [labelresearch]="'Programme_de_recherche'" [intituleinput]="'Programme de recherche'" [type]="'text'"></app-input>
+
+        <div class="form-group-twin">
+
+          <app-input [error]="(newPublicationForm.get('publication').get('year').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="year" [intituleinput]="'Année'" [type]="'text'"></app-input>
+
+          <app-input [error]="(newPublicationForm.get('publication').get('state').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="state" [intituleinput]="'Statut'" [labelresearch]="'Statut_publication'" [type]="'text'"></app-input>
+
+        </div>
+
+        <app-input [error]="(newPublicationForm.get('publication').get('headed').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="headed" [intituleinput]="'Intitulé'" [type]="'text'"></app-input>
+
+        <app-input [style]="'grey'" formcontrolname="url" [intituleinput]="'URL'" [type]="'text'"></app-input>
+
+        <app-input [style]="'grey'" formcontrolname="img_url" [intituleinput]="'Lien de l\'image'" [type]="'text'"></app-input>
+
+        <div class="sharepoint-link">
+          <a (click)="sharePointConnect()" class="btn-sharepoint" id="A Sharepoint">
+            <img src="../../../../../assets/icons/sharepoint.png" width="25px" alt="">
+            <span>Sharepoint</span>
+          </a>
+        </div>
+        <section class="attachment-container" *ngif="attachment &amp;&amp; attachment.length!=0">
+          <a target="_blank" [href]="attach.split(' ')[0]" *ngfor="let attach of attachment; let i=index;" class="attachment">
+            <img src="../../../../../assets/icons/streamline-icon-attachment@40x40.png" width="15px" height="15px" alt="" srcset="">
+            <span>{{attach.split(" ").splice(1).join(" ")}}</span>
+            <img (click)="deleteAttachment($event,i)" style="opacity: 0.7;margin-left: 10px;" width="12px" src="../../../../assets/icons/close-red.png" alt="" srcset="" id="IMG close-red">
+          </a>
+        </section>
+
+      </div>
+
+      <div formgroupname="links">
+        <div class="input-with-choice">
+          <app-input class="app-input" [multipleitems]="[]" [labelresearch]="currentLabelResearchAuthor" [style]="'grey'" formcontrolname="AUTHOR" [intituleinput]="'Auteur'" [type]="'text'">
+          </app-input>
+          <label class="switch">
+            <input (click)="($event.target.checked) ? currentLabelResearchAuthor='Person_contact' : currentLabelResearchAuthor='Person'" type="checkbox" id="INPUT df8c5c62-1684-4e61-8cf9-ebf59e575ae3">
+            <span class="slider round"></span>
+            <span class="desc">Partenaires</span>
+          </label>
+        </div>
+        <h3>Conférence</h3>
+        <app-input formcontrolname="WELCOME" [labelresearch]="'Conference'" [style]="'grey'" [intituleinput]="'Recherche d\'une conference'" [type]="'text'"></app-input>
+      </div>
+      
+
+      <div class="modif-toggle">
+        <h4>Modification de la conférence : </h4>
+        <input checked="" formcontrolname="modify_conference" type="checkbox" name="modifyConf" id="modifyConf">
+      </div>
+
+
+      <div formgroupname="conference">
+        
+        <app-input [error]="(newPublicationForm.get('conference').get('name').errors!=null &amp;&amp; submitFormState)" [disabledstart]="true" [style]="'grey'" formcontrolname="name" [intituleinput]="'Nom'" [type]="'text'"></app-input>
+
+        <app-input [error]="(newPublicationForm.get('conference').get('url').errors!=null &amp;&amp; submitFormState)" [disabledstart]="true" [style]="'grey'" formcontrolname="url" [intituleinput]="'URL'" [type]="'text'"></app-input>
+
+        <div class="form-group-twin">
+
+          <app-input [error]="(newPublicationForm.get('conference').get('start_date').errors!=null &amp;&amp; submitFormState)" [disabledstart]="true" [style]="'grey'" formcontrolname="start_date" [intituleinput]="'Date de début'" [type]="'date'"></app-input>
+
+          <app-input [error]="(newPublicationForm.get('conference').get('end_date').errors!=null &amp;&amp; submitFormState)" [disabledstart]="true" [style]="'grey'" formcontrolname="end_date" [intituleinput]="'Date de fin'" [type]="'date'"></app-input>
+
+        </div>
+
+        <app-input [error]="(newPublicationForm.get('conference').get('location').errors!=null &amp;&amp; submitFormState)" [disabledstart]="true" [style]="'grey'" formcontrolname="location" [intituleinput]="'Localisation'" [type]="'text'"></app-input>
+
+      </div>
+
+    </div>
+
+    <div *ngif="target=='Contact'" class="cntt">
+
+      <div formgroupname="contact">
+
+        <app-input [error]="(newContactForm.get('contact').get('name').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="name" [intituleinput]="'Nom de l\'établissement'" [type]="'text'"></app-input>
+
+        <app-input [error]="(newContactForm.get('contact').get('url').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="url" [intituleinput]="'URL'" [type]="'text'"></app-input>
+        
+        <app-input [error]="(newContactForm.get('contact').get('type_contact').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="type_contact" [labelresearch]="'Type_contact'" [intituleinput]="'Type de contact'" [type]="'email'"></app-input>
+
+      </div>
+
+      <h3>Relations internes</h3>
+      <div class="form-array" formarrayname="persons" *ngfor="let pers of newContactForm.get('persons')['controls']; let i = index">
+        <div (click)="newContactForm.get('persons').value[i].visible = !newContactForm.get('persons').value[i].visible" class="accordion" id="DIV {{newContactForm.get('persons').value[i].first_name+ &quot; &quot;+newContactForm.get('persons').value[i].last_name.toUpperCase()}}  Nouvelle personne  Supprimer">
+          <h3 *ngif="newContactForm.get('persons').value[i].first_name &amp;&amp; newContactForm.get('persons').value[i].first_name!=''">{{newContactForm.get('persons').value[i].first_name+ " "+newContactForm.get('persons').value[i].last_name.toUpperCase()}}</h3>
+          <h3 *ngif="newContactForm.get('persons').value[i].first_name==undefined || newContactForm.get('persons').value[i].first_name==''">Nouvelle personne</h3>
+          <button class="btn-delete-person" type="button" (click)="deletePersonToContact($event,i)" id="BUTTON Supprimer">Supprimer</button>
+        </div>
+        <div class="form-dyna" [@slideinout]="(newContactForm.get('persons').value[i].visible) ? 'in' : 'out'" [formgroupname]="i">
+          <div class="form-group-twin">
+            <app-input [style]="'grey'" formcontrolname="first_name" [intituleinput]="'Prénom'" [type]="'text'">
+            </app-input>
+            <app-input [style]="'grey'" formcontrolname="last_name" [intituleinput]="'Nom'" [type]="'text'">
+            </app-input>
+          </div>
+          <app-input [style]="'grey'" formcontrolname="mail" [intituleinput]="'Mail / URL'" [type]="'email'">
+          </app-input>
+          <app-input [style]="'grey'" formcontrolname="tel" [intituleinput]="'Téléphone'" [type]="'text'">
+          </app-input>
+          <app-input [style]="'grey'" formcontrolname="job" [intituleinput]="'Poste'" [type]="'text'">
+          </app-input>
+        </div>
+      </div>
+
+      <button class="btn-new-person" type="button" (click)="addNewPersonToContact()" id="BUTTON Nouvelle personne">Nouvelle personne</button>
+    </div>
+
+    <div *ngif="target=='Contrat'" class="cntt">
+
+      <div formgroupname="contrat">
+
+        <app-input [error]="(newContratForm.get('contrat').get('programme_de_recherche').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="programme_de_recherche" [labelresearch]="'Programme_de_recherche'" [intituleinput]="'Programme de recherche'" [type]="'text'"></app-input>
+
+        <app-input [error]="(newContratForm.get('contrat').get('headed').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="headed" [intituleinput]="'Intitulé'" [type]="'text'"></app-input>
+
+        <div class="form-group-twin">
+
+          <app-input [error]="(newContratForm.get('contrat').get('year').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="year" [intituleinput]="'Année'" [type]="'text'"></app-input>
+
+          <!--<app-input [error]="(newContratForm.get('contrat').get('state').errors!=null && submitFormState)" 
+          [style]="'grey'" 
+          formControlName="state" 
+          [intituleInput]="'Statut'"
+          [labelResearch]="'Statut_contrat'"  
+          [type]="'text'"></app-input>-->
+
+          <app-select-box [error]="(newContratForm.get('contrat').get('state').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Statut'" [style]="'dark-full'" formcontrolname="state" [labelresearch]="'Statut_contrat'"></app-select-box>
+
+        </div>
+
+        <!--<app-input [error]="(newContratForm.get('contrat').get('bu').errors!=null && submitFormState)" 
+        [style]="'grey'" 
+        formControlName="bu" 
+        [intituleInput]="'Entité juridique'" 
+        [labelResearch]="'BU'"  
+        [type]="'text'"></app-input>-->
+
+        <app-select-box [error]="(newContratForm.get('contrat').get('bu').errors!=null &amp;&amp; submitFormState)" [intituleselectbox]="'Entité juridique'" [style]="'dark-full'" formcontrolname="bu" [labelresearch]="'BU'"></app-select-box>
+
+        <app-input [error]="(newContratForm.get('contrat').get('format').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="format" [intituleinput]="'Type de document'" [type]="'text'"></app-input>
+
+        <app-input [error]="(newContratForm.get('contrat').get('cost').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="cost" [intituleinput]="'Coût HT en €'" [type]="'text'"></app-input>
+
+        <div class="form-group-twin">
+
+          <app-input [error]="(newContratForm.get('contrat').get('start_date').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="start_date" [intituleinput]="'Date de début'" [type]="'date'"></app-input>
+
+          <app-input [error]="(newContratForm.get('contrat').get('end_date').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="end_date" [intituleinput]="'Date de fin'" [type]="'date'"></app-input>
+
+        </div>
+
+        <div class="form-array" formarrayname="deadline" *ngfor="let contrat of newContratForm.get('contrat').get('deadline')['controls']; let i = index">
+          <div class="form-dyna" [formgroupname]="i">
+            <div class="head-deadline">
+              <h4>Echéance n° {{i+1}}</h4>
+              <button class="btn-delete-person" type="button" (click)="deleteDeadlineToContrat($event,i)" id="BUTTON Supprimer">Supprimer</button>
+            </div>
+            <div class="form-group-twin">
+              <app-input [style]="'grey'" formcontrolname="date" [intituleinput]="'Date'" [type]="'date'">
+              </app-input>
+              <app-input [style]="'grey'" formcontrolname="cost" [intituleinput]="'Coût HT en €'" [type]="'text'">
+              </app-input>
+            </div>
+          </div>
+        </div>
+        <button class="btn-new-deadline" type="button" (click)="addNewDeadlineToContrat()" id="BUTTON Nouvelle échéance">Nouvelle échéance</button>
+
+        <app-input [error]="(newContratForm.get('contrat').get('comment').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="comment" [intituleinput]="'Commentaires / Notes'" [type]="'textarea'"></app-input>
+
+        <app-input [error]="(newContratForm.get('contrat').get('result').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="result" [intituleinput]="'Résultats'" [type]="'textarea'"></app-input>
+
+        <div class="sharepoint-link">
+          <a (click)="sharePointConnect()" class="btn-sharepoint" id="A Sharepoint">
+            <img src="../../../../../assets/icons/sharepoint.png" width="25px" alt="">
+            <span>Sharepoint</span>
+          </a>
+        </div>
+        <section class="attachment-container" *ngif="attachment &amp;&amp; attachment.length!=0">
+          <a target="_blank" [href]="attach.split(' ')[0]" *ngfor="let attach of attachment; let i=index;" class="attachment">
+            <img src="../../../../../assets/icons/streamline-icon-attachment@40x40.png" width="15px" height="15px" alt="" srcset="">
+            <span>{{attach.split(" ").splice(1).join(" ")}}</span>
+            <img (click)="deleteAttachment($event,i)" style="opacity: 0.7;margin-left: 10px;" width="12px" src="../../../../assets/icons/close-red.png" alt="" srcset="" id="IMG close-red">
+          </a>
+        </section>
+
+      </div>
+
+      <div formgroupname="links">
+
+        <app-input [multipleitems]="[]" [labelresearch]="'Person'" [style]="'grey'" formcontrolname="RESPONSABLE_OF" [intituleinput]="'Responsables'" [type]="'text'"></app-input>
+
+        <app-input [multipleitems]="[]" [labelresearch]="'Contact'" [style]="'grey'" formcontrolname="PARTNER" [intituleinput]="'Partenaires'" [type]="'text'"></app-input>
+
+        <app-input [labelresearch]="'Contrat'" [style]="'grey'" formcontrolname="AMENDMENT_OF" [intituleinput]="'Avenant de'" [type]="'text'"></app-input>
+
+        <app-input [labelresearch]="'Person'" [style]="'grey'" formcontrolname="STUDENT_LINKED" [intituleinput]="'Etudiant attaché à la convention CIFRE'" [type]="'text'"></app-input>
+
+      </div>
+      
+    </div>
+
+    <div *ngif="target=='Programme'" class="cntt">
+
+      <div formgroupname="programme">
+        <div class="form-group-twin">
+
+          <app-input [error]="(newProgrammeForm.get('programme').get('year').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="year" [intituleinput]="'Année'" [type]="'text'"></app-input>
+
+          <app-input [error]="(newProgrammeForm.get('programme').get('value').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="value" [intituleinput]="'Code'" [type]="'text'"></app-input>
+
+        </div>
+        
+        <app-input [error]="(newProgrammeForm.get('programme').get('description').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="description" [intituleinput]="'Description du programme'" [type]="'text'"></app-input>
+
+        <app-input [error]="(newProgrammeForm.get('programme').get('bu').errors!=null &amp;&amp; submitFormState)" [style]="'grey'" formcontrolname="bu" [intituleinput]="'Entité juridique'" [labelresearch]="'BU'" [type]="'text'"></app-input>
+
+        <app-input [style]="'grey'" formcontrolname="tags" [multipleitems]="[]" [labelresearch]="'Tag_programme'" [intituleinput]="'Mots-clé'" [type]="'text'"></app-input>
+
+      </div>
+
+      <div formgroupname="links">
+        <app-input [error]="(newProgrammeForm.get('links').get('RESPONSABLE_OF').errors!=null &amp;&amp; submitFormState)" [labelresearch]="'Person'" [style]="'grey'" formcontrolname="RESPONSABLE_OF" [intituleinput]="'Responsable...'" [type]="'text'"></app-input>
+      </div>
+
+    </div> 
+
+    <div class="btn-wrapper">
+      <button [disabled]="disableButton || currentUser.person.type_account=='Externe'" type="button" (click)="submit()" class="btn-new-co-second" id="submit">Valider</button>
+      <button [disabled]="currentUser.person.type_account=='Externe'" *ngif="!newElement()" type="button" (click)="inRemove=true" class="btn-new-co" id="delete">Supprimer</button>
+    </div>
+
+  </form>
+</div>
+
+
+<app-alert [mode]="'choice'" (acceptalert)="deleteElement()" (cancelalert)="inRemove=false" [title]="'Suppression'" [description]="'Voulez-vous vraiment supprimer : <span>'+getElementToDelete()+'</span>. Cette action aura pour effet la suppression définitive !'" *ngif="inRemove">
+</app-alert>
+
+</body></html>
