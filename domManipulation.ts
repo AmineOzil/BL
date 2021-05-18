@@ -5,24 +5,25 @@ import { Project } from "ts-morph";
 import { v4 as uuidv4 } from 'uuid';
 const parse5 = require('parse5');
 const fs = require('fs');
+const symbolicIDSeparator="__";
 const project = new Project();
-let doc: Document;
-let files: any[] = [];
+var doc: Document;
+var files: any[] = [];
 const glob = require('glob');
 glob("D:\\Users\\mohammed-amin.bouali\\Downloads\\Angular-ShoppingCart-master\\src\\app" + '/**/*.html', {}, (err, fileArray) => {
     files = fileArray;
     files.forEach(file => {
-        // const widgets:string[]={};
+        var widgets:string[]=[];
         
         project.addSourceFileAtPath(file.replace(".html",".ts"));
         
         console.log(file);
-        let html = fs.readFileSync(file,"utf-8");
+        var html = fs.readFileSync(file,"utf-8");
         var co:string;
         var camelCaseRegex=/.[a-z]+[A-Z]+[a-z]*(?:[A-Z][a-z]+)*/gm;
-        let camelCaseWords=html.match(camelCaseRegex);
+        var camelCaseWords=html.match(camelCaseRegex);
         if (camelCaseWords){
-           camelCaseWords=[...new Set(camelCaseWords)]; // To delete duplicates
+           camelCaseWords=[...new Set(camelCaseWords)]; // To devare duplicates
            camelCaseWords.sort((a, b) => b.length - a.length); // Sort the words in order to make sure longer words get converted
            console.log(camelCaseWords.length); 
         }
@@ -35,20 +36,21 @@ glob("D:\\Users\\mohammed-amin.bouali\\Downloads\\Angular-ShoppingCart-master\\s
         // console.log(html);
         var dom = new JSDOM(html);
         doc = dom.window.document;
-        let allElements = doc.getElementsByTagName("*");
+        var allElements = doc.getElementsByTagName("*");
         console.log(allElements.length);
-        let allElementsArray = Array.from(allElements);
-        let typing,trace:boolean=false;
-        let elementsWithId = Array.from(doc.querySelectorAll("[id]"));
+        var allElementsArray = Array.from(allElements);
+        var typing,trace:boolean=false;
+        var elementsWithId = Array.from(doc.querySelectorAll("[id]"));
         allElementsArray.forEach((element) => {
             console.log(element.getAttributeNames().includes("[routerlink]"));
             
             if ((element.getAttributeNames().includes("(click)") ||element.getAttributeNames().includes("[routerlink]") || (element.getAttribute("href") && element.getAttribute("href") != "#")  ) && !element.id) {
                
                 /*TODO*/
-                // widgets.push(element.tagName);
-                // let tagNameREGEX=new RegExp(element.tagName,'g');
-                // element.id=element.tagName+"__"+widgets.toString().match(tagNameREGEX).length;
+                widgets.push(element.tagName);
+                var tagNameREGEX=new RegExp(element.tagName,'g');
+                const symbolicIDSeparator="__";
+                var symbolicID=element.tagName+symbolicIDSeparator+widgets.toString().match(tagNameREGEX).length;
                
                 if(!element.getAttribute("(click)")){
                     element.setAttribute("click_event_added","trace($event)") //adding click event for routerlink elements
@@ -57,11 +59,11 @@ glob("D:\\Users\\mohammed-amin.bouali\\Downloads\\Angular-ShoppingCart-master\\s
 
                 id = getFirstTextValue(element);
                 if (element.tagName.includes("IMG")){
-                    let filepath = element.getAttribute("src");
+                    var filepath = element.getAttribute("src");
                     id = getFilename(filepath);
                 } 
                 else if (element.tagName.includes("EM")) id = generateIDforEM(element);
-                if (id != '') id= element.tagName +"_" +id;
+                if (id != '') id= symbolicID;
                 console.log("id:" + id + " Tag:" + element.tagName);
                 element.id = id;
                 trace=true;
@@ -73,13 +75,13 @@ glob("D:\\Users\\mohammed-amin.bouali\\Downloads\\Angular-ShoppingCart-master\\s
             }
         });
         var finalResult = doc.documentElement.outerHTML;
-        finalResult=deleteHtmlBodyTags(finalResult);
+        finalResult=devareHtmlBodyTags(finalResult);
 
         if(camelCaseWords)
         camelCaseWords.forEach((word)=>{
-            let escapeFirstLetter="";
-            if(!isAlphaNumeric(word.charAt(0))) escapeFirstLetter="\\";
-            let wordToLowercaseREGEX=new RegExp(escapeFirstLetter+word.toLowerCase(),'g');
+            var escapeFirstvarter="";
+            if(!isAlphaNumeric(word.charAt(0))) escapeFirstvarter="\\";
+            var wordToLowercaseREGEX=new RegExp(escapeFirstvarter+word.toLowerCase(),'g');
             console.log("REGEX :"+wordToLowercaseREGEX);            
             finalResult=finalResult.replace(wordToLowercaseREGEX,word);
         });
@@ -110,8 +112,8 @@ glob("D:\\Users\\mohammed-amin.bouali\\Downloads\\Angular-ShoppingCart-master\\s
         });
         project.getSourceFile(file.replace(".html",".ts")).getClasses().forEach(classe=>{
                 console.log(classe.getName())
-                var traceMethod ="     trace(event:Event){\r\n        var target = event.srcElement as HTMLElement;\r\n        if(!target.id || target.id==\"\"){\r\n          target.id=this.getFirstTextValue(event.srcElement as HTMLElement);\r\n        }\r\n        var idAttr = target.id;\r\n        console.info(\"The user: has clicked on :\"+idAttr+\" XPath:\"+this.getXPath(target));\r\n    }";
-                var getFirstTextValue="    getFirstTextValue(element:Element):string{\r\n        var i=0;\r\n        let text=\"\";\r\n        for(let elementhtml of Array.from(element.childNodes)){\r\n            text=elementhtml.textContent.replace(\/[\\n\\r]+|[\\s]{2,}\/g, \' \').trim();\r\n            if(text.length>0) break;\r\n        }\r\n        if(text==\"\" && element.parentElement) return this.getFirstTextValue(element.parentElement);\r\n        return text;\r\n    }";
+                var traceMethod ="trace(event:Event){\r\n            const regex = \/\\w+"+symbolicIDSeparator+"\\d+\/gm;\r\n            var target = event.srcElement as HTMLElement;\r\n            if(!target.id || regex.exec(target.id)){\r\n              target.id=this.getFirstTextValue(event.srcElement as HTMLElement);\r\n            }\r\n            var idAttr = target.id;\r\n            console.info(\"The user: has clicked on :\"+idAttr+\" XPath:\"+this.getXPath(target));\r\n }";
+                var getFirstTextValue="    getFirstTextValue(element:Element):string{\r\n        var i=0;\r\n        var text=\"\";\r\n        for(var elementhtml of Array.from(element.childNodes)){\r\n            text=elementhtml.textContent.replace(\/[\\n\\r]+|[\\s]{2,}\/g, \' \').trim();\r\n            if(text.length>0) break;\r\n        }\r\n        if(text==\"\" && element.parentElement) return this.getFirstTextValue(element.parentElement);\r\n        return text;\r\n    }";
                 var getXPath= "    getXPath(element:HTMLElement){\r\n      if (element.tagName.toLowerCase() == \'html\')\r\n      return \'\/HTML[1]\';\r\n      if (element===document.body)\r\n          return \'\/HTML[1]\/BODY[1]\';\r\n\r\n      var ix= 0;\r\n      var siblings= element.parentElement.children;\r\n      for (var i= 0; i<siblings.length; i++) {\r\n          var sibling= siblings[i];\r\n          if (sibling===element)\r\n              return this.getXPath(element.parentElement)+\'\/\'+element.tagName+\'[\'+(ix+1)+\']\';\r\n          if (sibling.nodeType===1 && sibling.tagName===element.tagName)\r\n              ix++;\r\n      }\r\n    }";
                 var typingMethod='typing(event:Event,type:string){\n'+
                 '    var target=event.target as HTMLInputElement;\n'+
@@ -146,17 +148,17 @@ glob("D:\\Users\\mohammed-amin.bouali\\Downloads\\Angular-ShoppingCart-master\\s
 
 
 export function generateIdForNGForElements(doc: Document) {
-    let allElements = doc.getElementsByTagName("*");
+    var allElements = doc.getElementsByTagName("*");
     console.log(allElements.length);
-    let allElementsArray = Array.from(allElements);
-    let elementsWithNgFor: Element[] = [];
+    var allElementsArray = Array.from(allElements);
+    var elementsWithNgFor: Element[] = [];
     allElementsArray.forEach((element) => {
         if (element.getAttributeNames().includes("*ngfor")) {
             elementsWithNgFor.push(element);
         }
     });
     elementsWithNgFor.forEach((element) => {
-        let firstNode = element.firstElementChild;
+        var firstNode = element.firstElementChild;
         firstNode.setAttribute("id", "\'" + firstNode.tagName + "_" + firstNode.textContent + "_" + "\'i");
         console.log(firstNode.id);
     });
@@ -179,7 +181,7 @@ export function generateIDforEM(element: Element): string {
     if (!element.getAttributeNames().includes("(click)")) return "routerLink";
     return element.getAttribute("(click)").split(";")[1].split("(")[0];
 }
-export function deleteHtmlBodyTags(html:string):string{
+export function devareHtmlBodyTags(html:string):string{
     var html2="";
     html2=html.replace('<html><head></head><body>','');
     html2=html2.replace('</body></html>','');
@@ -187,8 +189,8 @@ export function deleteHtmlBodyTags(html:string):string{
 }
 export function getFirstTextValue(element:Element):string{
     var i=0;
-    let text="";
-    for(let elementhtml of Array.from(element.childNodes)){
+    var text="";
+    for(var elementhtml of Array.from(element.childNodes)){
         text=elementhtml.textContent.replace(/[\n\r]+|[\s]{2,}/g, ' ').trim();
         if(text.length>0) break;
     }
