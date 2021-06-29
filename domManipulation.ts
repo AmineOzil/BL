@@ -1,229 +1,68 @@
-import G = require("glob");
+import fs = require('fs');
+import fse = require('fs-extra');
+import path = require('path');
+import glob = require('glob');
+
 import { JSDOM } from "jsdom";
 import { Project } from "ts-morph";
 import { v4 as uuidv4 } from 'uuid';
 import * as readline from 'readline';
+import { performance } from 'perf_hooks';
 
-const { PerformanceObserver, performance } = require('perf_hooks');
-const parse5 = require('parse5');
-const fs = require('fs');
 const symbolicIDSeparator="__";
 const project = new Project();
-var doc: Document;
-var files: any[] = [];
-const glob = require('glob');
-var t1 = performance.now();
 
-let rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-var appFolder='';
-rl.question('Please enter the path to your angular APP folder : \r\n', (path) => {
-  appFolder=path;  
-  t1 = performance.now();
-  glob(appFolder + '/**/*.html', {}, (err, fileArray) => {
-        files = fileArray;
-        files.forEach(file => {
-            var widgets:string[]=[];
-            
-            project.addSourceFileAtPath(file.replace(".html",".ts"));
-            
-            console.log(file);
-            var html = fs.readFileSync(file,"utf-8");
-            var co:string;
-            var camelCaseRegex=/.[a-z]+[A-Z]+[a-z]*(?:[A-Z][a-z]+)*/gm;
-            var camelCaseWords=html.match(camelCaseRegex);
-            if (camelCaseWords){
-            camelCaseWords=[...new Set(camelCaseWords)]; // To devare duplicates
-            camelCaseWords.sort((a, b) => b.length - a.length); // Sort the words in order to make sure longer words get converted
-            }
-            
-            html=html.replace(/%/g,'--pct--');
-            //console.log(html);
-            html = decodeURIComponent(html);
-            html=html.replace(/--pct--/g,'%');
-            html=html.replace(/\(click\)="/g,'(click)="trace($event);');
-            html=html.replace(/\(ngSumbit\)="/g,'(ngSubmit)="trace($event);');
-            // console.log(html);
-            var dom = new JSDOM(html);
-            doc = dom.window.document;
-            var allElements = doc.getElementsByTagName("*");
-            console.log(allElements.length);
-            var allElementsArray = Array.from(allElements);
-            var typing,trace:boolean=false;
-            var elementsWithId = Array.from(doc.querySelectorAll("[id]"));
-            allElementsArray.forEach((element) => {
-  
-                if ((element.getAttributeNames().includes("(click)") ||element.getAttributeNames().includes("[routerlink]") || element.getAttributeNames().includes("routerlink") || (element.getAttribute("href") && element.getAttribute("href") != "#") ) && !element.id) {
-                    /*Symbolic id generation */
-                    widgets.push(element.tagName);
-                    var tagNameREGEX=new RegExp(element.tagName,'g');
-                    const symbolicIDSeparator="__";
-                    var symbolicID=element.tagName+symbolicIDSeparator+widgets.toString().match(tagNameREGEX).length;
-                    
+/**
+ * app's folder absolute path
+ */
+let appFolder='';
 
-                    if(!element.getAttribute("(click)")){
-                        element.setAttribute("click_event_added","trace($event)") //adding click event for routerlink elements
-                    }
-                    var id: string;
-                    /* Generating id for widgets that misses ids */
-                    id = getFirstTextValue(element);
-                    if (element.tagName.includes("IMG")){
-                        var filepath = element.getAttribute("src");
-                        id = getFilename(filepath);
-                    } 
-                    else if (element.tagName.includes("EM")) id = generateIDforEM(element);
-                    if (id == '') id= symbolicID;
-                    else id=element.tagName+"_"+id+"_"+uuidv4();
-                    console.log("id:" + id + " Tag:" + element.tagName);
-                    element.id = id;
-                    trace=true;
-                    // element.setAttribute("\(click\)","trace($event);");
-                }
-                if(element.tagName=="input") {
-                    element.id ="input_"+(element.getAttribute("name") || element.getAttribute("placeholder") || getFirstTextValue(element))+"_"+uuidv4();
-                    if (element.id=="input_") element.id="input"+symbolicIDSeparator+widgets.toString().match(tagNameREGEX).length;
-                    element.setAttribute("focusout_event_added","typing($event,\""+element.getAttribute("type")+"\")");
-                    typing=true;
-                }
-                if(element.getAttribute("(click)") || element.getAttribute("click_event_added") || element.getAttribute("focusout_event_added") )
-                element.setAttribute("data-eventful-widget","true");
-            });
-            var finalResult = doc.documentElement.outerHTML;
-            finalResult=devareHtmlBodyTags(finalResult);
+/**
+ * a folder in which the app/ folder of the project will be copied
+ * for now it's hardcoded, but should be chosen by the client/developer
+ */
+const testFolder = 'D:\\coding\\angular\\test';
 
-            if(camelCaseWords)
-            camelCaseWords.forEach((word)=>{
-                var escapeFirstvarter="";
-                if(!isAlphaNumeric(word.charAt(0))) escapeFirstvarter="\\";
-                var wordToLowercaseREGEX=new RegExp(escapeFirstvarter+word.toLowerCase(),'g');
-                console.log("REGEX :"+wordToLowercaseREGEX);            
-                finalResult=finalResult.replace(wordToLowercaseREGEX,word);
-            });
-            finalResult=finalResult.replace(/&amp;/gm,"&");
-            finalResult=finalResult.replace(/&lt;/gm,"<");
-            finalResult=finalResult.replace(/&gt;/gm,">");
-            // finalResult=finalResult.replace(/&quot;/gm,"\"");
-            finalResult=finalResult.replace(/click_event_added/gm,"(click)");
-            finalResult=finalResult.replace(/focusout_event_added/gm,"(focusout)");
-            // finalResult=finalResult.replace(/\*ngif/g,'*ngIf');
-            // finalResult=finalResult.replace(/\*ngfor/g,'*ngFor');
-            // finalResult=finalResult.replace(/ngmodelchange/g,'ngModelChange');
-            // finalResult=finalResult.replace(/ngmodel/g,'ngModel');
-            // finalResult=finalResult.replace(/showcustomrangelabel/g,'showCustomRangeLabel');
-            // finalResult=finalResult.replace(/alwaysshowcalendars/g,'alwaysShowCalendars');
-            // finalResult=finalResult.replace(/keepcalendaropeningwithrange/g,'keepCalendarOpeningWithRange');
-            // finalResult=finalResult.replace(/autoapply/g,'autoApply');
-            // finalResult=finalResult.replace(/#textinput/g,'#textInput');
-            // finalResult=finalResult.replace(/ngxdaterangepickermd/g,'ngxDaterangepickerMd');
-            // finalResult=finalResult.replace(/\[style.backgroundcolor\]/g,'[style.backgroundColor]');
-            // finalResult=finalResult.replace(/\[innerhtml\]/g,'[innerHtml]');
-            
-            // finalResult=finalResult.replace(/ngstyle/g,'ngStyle');
-            // finalResult=finalResult.replace(/ngclass/g,'ngClass');
-            // finalResult=finalResult.replace(/#ckeditor/g,'#ckEditor');
-            fs.writeFile(file, finalResult, err => {
-                console.log('done');
-            });
-            project.getSourceFile(file.replace(".html",".ts")).getClasses().forEach(classe=>{
-                    console.log(classe.getName())
-                    var traceMethod ="trace(event:Event){\r\n                    let apiKey=\"de8a4390b3514c089e56c67413aee03f\";\r\n                    let ip=\"\";\r\n                    fetch('https://ipgeolocation.abstractapi.com/v1/?api_key=' + apiKey)\r\n                    // Extract JSON body content from HTTP response\r\n                   .then(response => response.json())\r\n                     // Do something with the JSON data\r\n                   .then(data => {\r\n                     ip=data.ip_address;\r\n                     const regex = /\\w+__\\d+/gm;\r\n                        var target = event.srcElement as HTMLElement;\r\n                        var idAttr = target.id;\r\n                        if(!idAttr || regex.exec(idAttr)){\r\n                          idAttr=this.getFirstTextValue(target);\r\n                        }\r\n                        console.info(\"Timestamp:\"+Date.now()+\" The user with ip:\"+ip+\" has clicked on widget : type :\"+target.tagName+\" id:\"+idAttr+\" XPath:\"+this.getXPath(target));\r\n                   });\r\n             }";
-                    var getFirstTextValue="    getFirstTextValue(element:Element):string{\r\n        var i=0;\r\n        var text=\"\";\r\n        for(var elementhtml of Array.from(element.childNodes)){\r\n            text=elementhtml.textContent.replace(\/[\\n\\r]+|[\\s]{2,}\/g, \' \').trim();\r\n            if(text.length>0) break;\r\n        }\r\n        if(text==\"\" && element.parentElement) return this.getFirstTextValue(element.parentElement);\r\n        return text;\r\n    }";
-                    var getXPath= "    getXPath(element:HTMLElement){\r\n      if (element.tagName.toLowerCase() == \'html\')\r\n      return \'\/HTML[1]\';\r\n      if (element===document.body)\r\n          return \'\/HTML[1]\/BODY[1]\';\r\n\r\n      var ix= 0;\r\n      var siblings= element.parentElement.children;\r\n      for (var i= 0; i<siblings.length; i++) {\r\n          var sibling= siblings[i];\r\n          if (sibling===element)\r\n              return this.getXPath(element.parentElement)+\'\/\'+element.tagName+\'[\'+(ix+1)+\']\';\r\n          if (sibling.nodeType===1 && sibling.tagName===element.tagName)\r\n              ix++;\r\n      }\r\n    }";
-                    var typingMethod='typing(event:Event,type:string){\n'+
-                    '    var target=event.target as HTMLInputElement;\n'+
-                    '    if (type==\"password\") console.log(\"The user has typed a password on input:\"+target.id);\n'+
-                    '    else console.log(\"The user has typed :\"+target.value+" on input:\"+target.id);\n'+
-                    '  }';
-                    if(trace){
-                    classe.addMember(traceMethod); 
-                    classe.addMember(getFirstTextValue);
-                    classe.addMember(getXPath);
-                    }
-                    
-                    if(typing)
-                    classe.addMember(typingMethod);
-                    console.log("method added");
-                })
-            project.saveSync();
-        })
-        var t2 = performance.now();
-console.log("Execution time ="+(t2-t1)/1000+"s")
-    })
+main();
+
+function main() {
+    let t1 = performance.now();
+    let rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
     
-  rl.close();
-});
-
-// project.getSourceFiles().forEach(sourceFile => {
-//     console.log(sourceFile.getFilePath());
-//     sourceFile.getClasses().forEach(classe=>{
-//         console.log(classe.getName())
-//         var traceMethod = '  trace(event:Event){\n    var target = event.srcElement as HTMLElement;\n    while(!target.id){\n      target=target.parentElement;\n    }\n    var idAttr = target.id;\n    console.log(\"The user has clicked on button :\"+idAttr);\n  }';
-//         classe.addMember(traceMethod);
-//         console.log("method added");
-//     })
-// });
-// project.saveSync();
-
-// generateIdForNGForElements(doc);
-
-
-export function generateIdForNGForElements(doc: Document) {
-    var allElements = doc.getElementsByTagName("*");
-    console.log(allElements.length);
-    var allElementsArray = Array.from(allElements);
-    var elementsWithNgFor: Element[] = [];
-    allElementsArray.forEach((element) => {
-        if (element.getAttributeNames().includes("*ngfor")) {
-            elementsWithNgFor.push(element);
-        }
-    });
-    elementsWithNgFor.forEach((element) => {
-        var firstNode = element.firstElementChild;
-        firstNode.setAttribute("id", "\'" + firstNode.tagName + "_" + firstNode.textContent + "_" + "\'i");
-        console.log(firstNode.id);
-    });
+    rl.question('Please enter the absolute path to your Angular app/ folder : \r\n', (appPath) => {
+      setAppFolder(appPath);
+    
+      t1 = performance.now();
+      glob(appFolder + '/**/*.html', {}, (err, files) => {
+            files.forEach(file => {
+                let componentTemplateWrapper = new ComponentTemplateWrapper(project, file);
+                componentTemplateWrapper.instrument();
+                componentTemplateWrapper.businessLogic.instrument();
+            });
+            let t2 = performance.now();
+            console.log(`Execution time = ${(t2-t1)/1000}s`);
+        });
+        
+      rl.close();
+    }); 
 }
 
-export async function getAllHTMLFiles(folderPath: string, fileArray: any[]) {
-
-}
-export function getFirstValueFromElement(element: Element) {
-
-}
-export function getFilename(filepath: string): string {
-    const regex = /.+\/*\/(.*)\..*$/gm;
-    var match = regex.exec(filepath);
-    return match[1];
-}
-export function generateIDforEM(element: Element): string {
-    // var img = element.firstElementChild;
-    // return generateIDforImageElement(img);
-    if (!element.getAttributeNames().includes("(click)")) return "routerLink";
-    return element.getAttribute("(click)").split(";")[1].split("(")[0];
-}
-export function devareHtmlBodyTags(html:string):string{
-    var html2="";
-    html2=html.replace('<html><head></head><body>','');
-    html2=html2.replace('</body></html>','');
-    return html2;
-}
-export function getFirstTextValue(element:Element):string{
-    var i=0;
-    var text="";
-    for(var elementhtml of Array.from(element.childNodes)){
-        text=elementhtml.textContent.replace(/[\n\r]+|[\s]{2,}/g, ' ').trim();
-        if(text.length>0) break;
+function setAppFolder(appPath: string, mode: 'in_place' | 'test' = 'in_place') {
+    if (mode === 'in_place')
+        appFolder = appPath;
+    else {
+        let projectName = path.basename(path.dirname(path.dirname(appPath)));
+        appFolder = `${testFolder}\\${projectName}\\src\\app`;
+        fse.copySync(appPath, appFolder);
     }
-    // if(text=="" && element.parentElement) return getFirstTextValue(element.parentElement);
-    return text;
 }
-function isAlphaNumeric(str) {
-    var code, i, len;
-  
-    for (i = 0, len = str.length; i < len; i++) {
-      code = str.charCodeAt(i);
+
+function isAlphaNumeric(str: string) {
+    for (let i = 0, len = str.length; i < len; i++) {
+      let code = str.charCodeAt(i);
       if (!(code > 47 && code < 58) && // numeric (0-9)
           !(code > 64 && code < 91) && // upper alpha (A-Z)
           !(code > 96 && code < 123)) { // lower alpha (a-z)
@@ -231,4 +70,408 @@ function isAlphaNumeric(str) {
       }
     }
     return true;
-  };
+}
+
+export class CodeInjector {
+    
+    static getTraceMethodImpl() {
+        return `
+        trace(event:Event){
+            let apiKey="de8a4390b3514c089e56c67413aee03f";
+            let ip="";
+            fetch('https://ipgeolocation.abstractapi.com/v1/?api_key=' + apiKey)
+            // Extract JSON body content from HTTP response
+            .then(response => response.json())
+            // Do something with the JSON data
+            .then(data => {
+                ip=data.ip_address;
+                const regex = /\w+__\d+/gm;
+                var target = event.target as HTMLElement;
+                var idAttr = target.id;
+                if(!idAttr || regex.exec(idAttr))
+                    idAttr=this.getFirstTextValue(target);
+                console.info("Timestamp: "+Date.now()+", User IP: "+ip+", Event: 'Click', Widget: (Type:"+target.tagName+", ID:"+idAttr+", XPath:"+this.getXPath(target)+")");
+            });
+        }`;
+    }
+
+    static getFirstTextValueImpl() {
+        return `
+        getFirstTextValue(element:Element):string{
+            var i=0;
+            var text="";
+            for(var elementhtml of Array.from(element.childNodes)){
+                text=elementhtml.textContent.replace(/[\\n\\r]+|[\\s]{2,}/g, ' ').trim();
+                if(text.length>0) break;
+            }
+            if(text=="" && element.parentElement)
+                return this.getFirstTextValue(element.parentElement);
+            return text;
+        }`;
+    }
+
+    /**
+     * @TODO Bug: an error occurs when element.parentElement is null when computing siblings
+     */
+    static getXPathImpl() {
+        return `
+        getXPath(element:HTMLElement){
+            if (element.tagName.toLowerCase() == 'html')
+                return '/HTML[1]';
+            if (element===document.body)
+                return '/HTML[1]/BODY[1]';
+    
+            let ix = 0;
+            let siblings = element.parentElement.children;
+            for (let i = 0; i < siblings.length; i++) {
+                let sibling = siblings[i];
+                if (sibling === element)
+                    return this.getXPath(element.parentElement)+'/'+element.tagName+'['+(ix+1)+']';
+                if (sibling.nodeType === 1 && sibling.tagName === element.tagName)
+                    ix++;
+            }
+        }`;
+    }
+
+    static getTypingMethodImpl() {
+        return `
+        typing(event:Event,type:string){
+            var target=event.target as HTMLInputElement;
+            if (type=="password")
+                console.log("The user has typed a password on input:"+target.id);
+            else 
+                console.log("The user has typed :"+target.value+" on input:"+target.id);
+          }`;
+    }
+}
+
+export class ComponentTemplateWrapper {
+
+    private _html: string;
+    private _document: Document;
+    private _widgets: string[] = [];
+    private _tracing = false;
+    private _typing = false;
+    private readonly camelCaseRegex: RegExp = /.[a-z]+[A-Z]+[a-z]*(?:[A-Z][a-z]+)*/gm;
+    private camelCaseWords: RegExpMatchArray;
+    private _businessLogic: ComponentBusinessLogicWrapper;
+    
+    constructor(private _project: Project, private _file: string){
+        this._html = fs.readFileSync(_file,"utf-8");
+        this._businessLogic = new ComponentBusinessLogicWrapper(_project, this);
+    }
+
+    get project(){
+        return this._project;
+    }
+
+    get file(){
+        return this._file;
+    }
+
+    get html(){
+        return this._html;
+    }
+
+    get document(){
+        return this._document;
+    }
+
+    get widgets(){
+        return this._widgets;
+    }
+
+    get tracing(){
+        return this._tracing;
+    }
+
+    set tracing(value: boolean){
+        this._tracing = value;
+    }
+
+    get typing(){
+        return this._typing;
+    }
+
+    set typing(value: boolean){
+        this._typing = value;
+    }
+
+    get businessLogic(){
+        return this._businessLogic;
+    }
+
+    getCamelCaseAttributesAndValuesFromInitialHTML(){
+        this.camelCaseWords = this._html.match(this.camelCaseRegex);
+    
+        if (this.camelCaseWords){
+            // Delete duplicates
+            this.camelCaseWords = [...new Set(this.camelCaseWords)];
+            // Sort the words in order to make sure longer words get converted
+            this.camelCaseWords.sort((a, b) => b.length - a.length);
+        }
+    }
+
+    preprocessHTML(){
+        this._html = this._html.replace(/%/g, '--pct--');
+        this._html = decodeURIComponent(this._html);
+        this._html = this._html.replace(/--pct--/g, '%');
+        this._html = this._html.replace(/\(click\)="/g, '(click)="trace($event);');
+        this._html = this._html.replace(/\(ngSubmit\)="/g, '(ngSubmit)="trace($event);');
+    }
+
+    parseDOM(){
+        this._document = (new JSDOM(this._html)).window.document;
+    }
+
+    assignIDsToElements(){
+        let allElements = Array.from(this._document.getElementsByTagName("*"));
+            console.log(`# Elements: ${allElements.length}`);
+            allElements.forEach((element) => {
+
+                let elementWrapper = new ElementWrapper(element, this);
+                let elementIDGenerator = new ElementIDGenerator(elementWrapper);
+                elementIDGenerator.visit();
+            });
+    }
+
+    deleteHtmlBodyTags(){
+        let html2 = "";
+        html2 = this._html.replace('<html><head></head><body>','');
+        html2 = html2.replace('</body></html>','');
+        this._html = html2;
+    }
+    
+    replaceLowerCaseAttributesAndValuesByCamelCaseInFinalHTML(){
+        if(this.camelCaseWords)
+            this.camelCaseWords.forEach((word) => {
+                let escapeFirstvarter="";
+    
+                if(!isAlphaNumeric(word.charAt(0))) 
+                    escapeFirstvarter="\\";
+                
+                let wordToLowercaseREGEX = new RegExp(escapeFirstvarter + word.toLowerCase(), 'g');
+                this._html = this._html.replace(wordToLowercaseREGEX, word);
+            });
+    }
+    
+    postProcessHTML(){
+        this._html = this._document.documentElement.outerHTML;
+        this.deleteHtmlBodyTags();
+    
+        /**
+         * Replacing all captured angular attributes or values that 
+         * have been turned into lowercase by the JSDOM parser
+         * and replacing them by their original camelCase format
+         * as it was stored earlier.
+         */
+        this.replaceLowerCaseAttributesAndValuesByCamelCaseInFinalHTML();
+        this._html = this._html.replace(/&amp;/gm,"&");
+        this._html = this._html.replace(/&lt;/gm,"<");
+        this._html = this._html.replace(/&gt;/gm,">");
+        this._html = this._html.replace(/click_event_added/gm,"(click)");
+        this._html = this.html.replace(/focusout_event_added/gm,"(focusout)");
+    }
+
+    instrument(){
+        console.log(`Started instrumenting ${this._file}`);
+        this.getCamelCaseAttributesAndValuesFromInitialHTML();
+        this.preprocessHTML();
+        this.parseDOM();
+        this.assignIDsToElements();
+        this.postProcessHTML();
+        fs.writeFile(this._file, this._html, err => {
+            console.log(`Done instrumenting ${this._file}`);
+        });
+    }
+}
+
+export class ComponentBusinessLogicWrapper{
+
+    private _file: string;
+
+    constructor(private _project: Project, private _template: ComponentTemplateWrapper){
+        this._file = this._template.file.replace(".html", ".ts");
+    }
+
+    get project(){
+        return this._project;
+    }
+
+    get template(){
+        return this._template;
+    }
+
+    get file(){
+        return this._file;
+    }
+
+    instrument(){
+        console.log(`Started instrumenting ${this._file}`);
+        this._project.addSourceFileAtPath(this._file);
+        this._project.getSourceFile(this._file).getClasses().forEach(cls => {
+                console.log(`Class: ${cls.getName()}`);
+                if(this._template.tracing)
+                    cls.addMembers([
+                        CodeInjector.getTraceMethodImpl(), 
+                        CodeInjector.getFirstTextValueImpl(), 
+                        CodeInjector.getXPathImpl()
+                    ]);
+                if(this._template.typing)
+                    cls.addMember(CodeInjector.getTypingMethodImpl());
+                console.log(`Done instrumenting ${this._file}`);
+            });
+        this._project.saveSync();
+    }
+}
+
+export class ElementWrapper {
+    private regex: RegExp;
+
+    constructor(private _element: Element, private _containerTemplate: ComponentTemplateWrapper){
+        this.regex = new RegExp(this._element.tagName,'g');
+    }
+
+    get element(){
+        return this._element;
+    }
+
+    get containerTemplate(){
+        return this._containerTemplate;
+    }
+
+    requiresTracing(): boolean {
+        return !this._element.id && 
+            (this._element.getAttributeNames().includes("(click)") ||
+            this._element.getAttributeNames().includes("[routerlink]") || 
+            this._element.getAttributeNames().includes("routerlink") || 
+            (this._element.tagName === "BUTTON" 
+                && this._element.getAttribute("type") === "submit") ||
+            (this._element.getAttribute("href") 
+                && this._element.getAttribute("href") != "#"))
+    }
+
+    generateSymbolicID(): string{
+        return this._element.tagName+symbolicIDSeparator+this._containerTemplate.widgets.toString().match(this.regex).length;
+    }
+
+    hasEvent(event: string){
+        return this._element.getAttribute(event);       
+    }
+
+    isEventful(){
+        return this.hasEvent("(click)") || 
+            this.hasEvent("click_event_added") ||
+            this.hasEvent("focus_event_added");
+    }
+
+    setEventful(){
+        this._element.setAttribute("data-eventful-widget","true");
+    }
+
+    accept(visitor: ElementIDGenerator){
+        visitor.visit();
+    }
+}
+
+export abstract class ElementVisitor {
+    constructor(protected elementWrapper: ElementWrapper){}
+    abstract visit(): void;
+}
+
+export class ElementIDGenerator extends ElementVisitor {
+    constructor(elementWrapper: ElementWrapper){
+        super(elementWrapper);
+    }
+
+    visit(): void {
+        let id: string = "";
+
+        if (this.elementWrapper.requiresTracing()){
+            this.elementWrapper.containerTemplate.tracing = true;
+            this.elementWrapper.containerTemplate.widgets.push(this.elementWrapper.element.tagName);
+
+            if(!this.elementWrapper.element.getAttribute("(click)") 
+                && this.elementWrapper.element.tagName !== "BUTTON"){
+                    this.elementWrapper.element.setAttribute("click_event_added","trace($event)");
+            }
+
+            if (this.elementWrapper.element.tagName.toLowerCase() === "img"){
+                id = this.generateIDForImage();
+            }
+
+            else if (this.elementWrapper.element.tagName.toLowerCase() === "em"){
+                id = this.generateIDForEmphasis();
+            }
+
+            else {
+                id = this.generateDefaultID(this.elementWrapper.element);
+            }
+
+            if (!id)
+                id = this.elementWrapper.generateSymbolicID();
+            else
+                id = this.elementWrapper.element.tagName + "_" + id + "_" + uuidv4();
+
+            this.elementWrapper.element.id = id;
+        }
+
+        if (this.elementWrapper.element.tagName.toLowerCase() === "input"){
+            this.elementWrapper.containerTemplate.typing = true;
+
+            this.elementWrapper.element.setAttribute("focusout_event_added",`typing($event,
+                '${this.elementWrapper.element.getAttribute("type")}')`);
+
+            id = this.generateIDForInput();
+
+            this.elementWrapper.element.id = id;
+        }
+
+        console.log(`Element tag: ${this.elementWrapper.element.tagName}, Element id: ${this.elementWrapper.element.id}`);
+
+        if (this.elementWrapper.isEventful())
+            this.elementWrapper.setEventful();
+    }
+
+    private generateIDForImage(){
+        const regex = /.+\/*\/(.*)\..*$/gm;
+        let imagePath = this.elementWrapper.element.getAttribute("src");
+        let match = regex.exec(imagePath);
+        return match[1];
+    }
+
+    private generateIDForEmphasis(){
+        if (!this.elementWrapper.element.getAttributeNames().includes("(click)")) 
+            return "routerLink";
+        return this.elementWrapper.element.getAttribute("(click)")
+                                          .split(";")[1]
+                                          .split("(")[0];
+    }
+
+    private generateDefaultID(element: Element){ // first text value
+        let text = "";
+        for (let htmlElement of Array.from(element.childNodes)){
+            text = htmlElement.textContent.replace(/[\n\r]+|[\s]{2,}/g, ' ').trim();
+            
+            if (text.length > 0) 
+                break;
+        }
+
+        if (text == "" && element.parentElement)
+            return this.generateDefaultID(element.parentElement);
+
+        return text;
+    }
+
+    private generateIDForInput(){
+        let primaryInputIDComponent = (this.elementWrapper.element.getAttribute("name") || 
+            this.elementWrapper.element.getAttribute("placeholder") || 
+            this.elementWrapper.element.getAttribute("formControlName") || 
+            this.generateDefaultID(this.elementWrapper.element));
+
+        if (primaryInputIDComponent)
+            return this.elementWrapper.element.tagName + symbolicIDSeparator + primaryInputIDComponent + symbolicIDSeparator + uuidv4();
+        else
+            return this.elementWrapper.generateSymbolicID();
+    }
+}
