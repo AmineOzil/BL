@@ -1,15 +1,12 @@
-import fs = require('fs');
 import fse = require('fs-extra');
 import path = require('path');
 import glob = require('glob');
-
 import { JSDOM } from "jsdom";
-import { Project } from "ts-morph";
+import { Project } from 'ts-morph';
 import { v4 as uuidv4 } from 'uuid';
 import * as readline from 'readline';
 import { performance } from 'perf_hooks';
 
-const symbolicIDSeparator="__";
 const project = new Project();
 
 /**
@@ -22,6 +19,8 @@ let appFolder='';
  * for now it's hardcoded, but should be chosen by the client/developer
  */
 const testFolder = 'D:\\coding\\angular\\test';
+
+const tracingConfigurationPath = 'tracing_config.json';
 
 main();
 
@@ -157,7 +156,7 @@ export class ComponentTemplateWrapper {
     private _businessLogic: ComponentBusinessLogicWrapper;
     
     constructor(private _project: Project, private _file: string){
-        this._html = fs.readFileSync(_file,"utf-8");
+        this._html = fse.readFileSync(_file,"utf-8");
         this._businessLogic = new ComponentBusinessLogicWrapper(_project, this);
     }
 
@@ -171,6 +170,10 @@ export class ComponentTemplateWrapper {
 
     get html(){
         return this._html;
+    }
+
+    set html(value: string){
+        this._html = value;
     }
 
     get document(){
@@ -216,23 +219,33 @@ export class ComponentTemplateWrapper {
         this._html = this._html.replace(/%/g, '--pct--');
         this._html = decodeURIComponent(this._html);
         this._html = this._html.replace(/--pct--/g, '%');
-        this._html = this._html.replace(/\(click\)="/g, '(click)="trace($event);');
-        this._html = this._html.replace(/\(ngSubmit\)="/g, '(ngSubmit)="trace($event);');
+        // this._html = this._html.replace(/\(click\)="/g, '(click)="trace($event);');
+        // this._html = this._html.replace(/\(ngSubmit\)="/g, '(ngSubmit)="trace($event);');
     }
 
     parseDOM(){
         this._document = (new JSDOM(this._html)).window.document;
     }
 
-    assignIDsToElements(){
+    traceAndAssignIDsToElements(){
+        let elementWrapper: ElementWrapper,
+            elementTracer: ElementTracer,
+            elementIDGenerator: ElementIDGenerator;
+
         let allElements = Array.from(this._document.getElementsByTagName("*"));
             console.log(`# Elements: ${allElements.length}`);
             allElements.forEach((element) => {
 
-                let elementWrapper = new ElementWrapper(element, this);
-                let elementIDGenerator = new ElementIDGenerator(elementWrapper);
-                elementIDGenerator.visit();
+                elementWrapper = new ElementWrapper(element, this);
+                elementTracer = new ElementTracer(elementWrapper, new JSONElementTracerConfiguration(tracingConfigurationPath));
+                elementWrapper.accept(elementTracer);
+
+                elementIDGenerator = new ElementIDGenerator(elementWrapper, elementTracer);
+                elementWrapper.accept(elementIDGenerator);
             });
+
+        this._html = this._document.documentElement.outerHTML;
+        elementTracer.postVisit();
     }
 
     deleteHtmlBodyTags(){
@@ -256,7 +269,6 @@ export class ComponentTemplateWrapper {
     }
     
     postProcessHTML(){
-        this._html = this._document.documentElement.outerHTML;
         this.deleteHtmlBodyTags();
     
         /**
@@ -269,8 +281,8 @@ export class ComponentTemplateWrapper {
         this._html = this._html.replace(/&amp;/gm,"&");
         this._html = this._html.replace(/&lt;/gm,"<");
         this._html = this._html.replace(/&gt;/gm,">");
-        this._html = this._html.replace(/click_event_added/gm,"(click)");
-        this._html = this.html.replace(/focusout_event_added/gm,"(focusout)");
+        // this._html = this._html.replace(/click_event_added/gm,"(click)");
+        // this._html = this.html.replace(/focusout_event_added/gm,"(focusout)");
     }
 
     instrument(){
@@ -278,9 +290,9 @@ export class ComponentTemplateWrapper {
         this.getCamelCaseAttributesAndValuesFromInitialHTML();
         this.preprocessHTML();
         this.parseDOM();
-        this.assignIDsToElements();
+        this.traceAndAssignIDsToElements();
         this.postProcessHTML();
-        fs.writeFile(this._file, this._html, err => {
+        fse.writeFile(this._file, this._html, err => {
             console.log(`Done instrumenting ${this._file}`);
         });
     }
@@ -326,10 +338,10 @@ export class ComponentBusinessLogicWrapper{
 }
 
 export class ElementWrapper {
-    private regex: RegExp;
+    private _regex: RegExp;
 
     constructor(private _element: Element, private _containerTemplate: ComponentTemplateWrapper){
-        this.regex = new RegExp(this._element.tagName,'g');
+        this._regex = new RegExp(this._element.tagName,'g');
     }
 
     get element(){
@@ -340,97 +352,106 @@ export class ElementWrapper {
         return this._containerTemplate;
     }
 
-    requiresTracing(): boolean {
-        return !this._element.id && 
-            (this._element.getAttributeNames().includes("(click)") ||
-            this._element.getAttributeNames().includes("[routerlink]") || 
-            this._element.getAttributeNames().includes("routerlink") || 
-            (this._element.tagName === "BUTTON" 
-                && this._element.getAttribute("type") === "submit") ||
-            (this._element.getAttribute("href") 
-                && this._element.getAttribute("href") != "#"))
+    get regex(){
+        return this._regex;
     }
 
-    generateSymbolicID(): string{
-        return this._element.tagName+symbolicIDSeparator+this._containerTemplate.widgets.toString().match(this.regex).length;
-    }
+    // requiresTracing(): boolean {
+    //     return !this._element.id && 
+    //         (this._element.getAttributeNames().includes("(click)") ||
+    //         this._element.getAttributeNames().includes("[routerlink]") || 
+    //         this._element.getAttributeNames().includes("routerlink") || 
+    //         (this._element.tagName === "BUTTON" 
+    //             && this._element.getAttribute("type") === "submit") ||
+    //         (this._element.getAttribute("href") 
+    //             && this._element.getAttribute("href") != "#"))
+    // }
 
-    hasEvent(event: string){
-        return this._element.getAttribute(event);       
-    }
+    // hasEvent(event: string){
+    //     return this._element.getAttribute(event);       
+    // }
 
-    isEventful(){
-        return this.hasEvent("(click)") || 
-            this.hasEvent("click_event_added") ||
-            this.hasEvent("focus_event_added");
-    }
+    // isEventful(){
+    //     return this.hasEvent("(click)") || 
+    //         this.hasEvent("click_event_added") ||
+    //         this.hasEvent("focus_event_added");
+    // }
 
-    setEventful(){
-        this._element.setAttribute("data-eventful-widget","true");
-    }
+    // setEventful(){
+    //     this._element.setAttribute("data-eventful-widget","true");
+    // }
 
-    accept(visitor: ElementIDGenerator){
+    accept(visitor: ElementVisitor){
         visitor.visit();
     }
 }
 
 export abstract class ElementVisitor {
-    constructor(protected elementWrapper: ElementWrapper){}
-    abstract visit(): void;
+    constructor(protected _elementWrapper: ElementWrapper){}
+    abstract preVisit(): any;
+    abstract visit(): any;
+    abstract postVisit(): any;
+
+    get elementWrapper(){
+        return this._elementWrapper;
+    }
 }
 
 export class ElementIDGenerator extends ElementVisitor {
-    constructor(elementWrapper: ElementWrapper){
+
+    private readonly symbolicIDSeparator = "__";
+
+    constructor(elementWrapper: ElementWrapper, private elementTracerVisitor?: ElementTracer){
         super(elementWrapper);
+    }
+
+    preVisit(): any {
+        return this.elementTracerVisitor && this.elementTracerVisitor.requiresTracing();
     }
 
     visit(): void {
         let id: string = "";
 
-        if (this.elementWrapper.requiresTracing()){
-            this.elementWrapper.containerTemplate.tracing = true;
-            this.elementWrapper.containerTemplate.widgets.push(this.elementWrapper.element.tagName);
+        if (this.preVisit()){
+            let tagName = this.elementWrapper.element.tagName;
+            this.elementWrapper.containerTemplate.widgets.push(tagName);
 
-            if(!this.elementWrapper.element.getAttribute("(click)") 
-                && this.elementWrapper.element.tagName !== "BUTTON"){
-                    this.elementWrapper.element.setAttribute("click_event_added","trace($event)");
-            }
+            switch(tagName){
+                case "BUTTON":
+                    id = this.generateIDForButton();
+                    break;
 
-            if (this.elementWrapper.element.tagName.toLowerCase() === "img"){
-                id = this.generateIDForImage();
-            }
+                case "INPUT":
+                    id = this.generateIDForInput();
+                    break;
 
-            else if (this.elementWrapper.element.tagName.toLowerCase() === "em"){
-                id = this.generateIDForEmphasis();
-            }
+                case "IMG":
+                    id = this.generateIDForImage();
+                    break;
 
-            else {
-                id = this.generateDefaultID(this.elementWrapper.element);
+                case "A":
+                    id = this.generateIDForAnchor();
+                    break;
+                
+                case "EM":
+                    id = this.generateIDForEmphasis();
+                    break;
+
+                default:
+                    id = this.generateDefaultID(this.elementWrapper.element);
             }
 
             if (!id)
-                id = this.elementWrapper.generateSymbolicID();
-            else
-                id = this.elementWrapper.element.tagName + "_" + id + "_" + uuidv4();
+                id = this.generateSymbolicID();
 
             this.elementWrapper.element.id = id;
+
+            console.log(`Element tag: ${this.elementWrapper.element.tagName}, Element id: ${this.elementWrapper.element.id}`);
         }
+    }
 
-        if (this.elementWrapper.element.tagName.toLowerCase() === "input"){
-            this.elementWrapper.containerTemplate.typing = true;
+    postVisit(): any {
 
-            this.elementWrapper.element.setAttribute("focusout_event_added",`typing($event,
-                '${this.elementWrapper.element.getAttribute("type")}')`);
-
-            id = this.generateIDForInput();
-
-            this.elementWrapper.element.id = id;
-        }
-
-        console.log(`Element tag: ${this.elementWrapper.element.tagName}, Element id: ${this.elementWrapper.element.id}`);
-
-        if (this.elementWrapper.isEventful())
-            this.elementWrapper.setEventful();
     }
 
     private generateIDForImage(){
@@ -463,15 +484,297 @@ export class ElementIDGenerator extends ElementVisitor {
         return text;
     }
 
+    private generateSymbolicID(): string{
+        let elementNumber = this.elementWrapper.containerTemplate.widgets.toString().match(this.elementWrapper.regex);
+        return `${this.elementWrapper.element.tagName}${this.symbolicIDSeparator}${elementNumber}`;
+    }
+
     private generateIDForInput(){
         let primaryInputIDComponent = (this.elementWrapper.element.getAttribute("name") || 
             this.elementWrapper.element.getAttribute("placeholder") || 
-            this.elementWrapper.element.getAttribute("formControlName") || 
+            this.elementWrapper.element.getAttribute("formcontrolname") || 
             this.generateDefaultID(this.elementWrapper.element));
+        let uuid = uuidv4();
 
         if (primaryInputIDComponent)
-            return this.elementWrapper.element.tagName + symbolicIDSeparator + primaryInputIDComponent + symbolicIDSeparator + uuidv4();
+            return `${this.elementWrapper.element.tagName}${this.symbolicIDSeparator}${primaryInputIDComponent}${this.symbolicIDSeparator}${uuid}`;
         else
-            return this.elementWrapper.generateSymbolicID();
+            return this.generateSymbolicID();
     }
+
+    private generateIDForButton(){
+        let primaryButtonIDComponent = (this.elementWrapper.element.getAttribute("name") || 
+            this.elementWrapper.element.getAttribute("value") || 
+            this.elementWrapper.element.getAttribute("formcontrolname") || 
+            this.generateDefaultID(this.elementWrapper.element));
+        let uuid = uuidv4();
+
+        if (primaryButtonIDComponent)
+            return `${this.elementWrapper.element.tagName}${this.symbolicIDSeparator}${primaryButtonIDComponent}${this.symbolicIDSeparator}${uuid}`;
+        else
+            return this.generateSymbolicID();
+    }
+
+    private generateIDForAnchor(){
+        let primaryAnchorIDComponent = (this.elementWrapper.element.getAttribute("routerlink") || 
+            this.elementWrapper.element.getAttribute("value") || 
+            this.elementWrapper.element.getAttribute("formControlName") || 
+            this.generateDefaultID(this.elementWrapper.element));
+        let uuid = uuidv4();
+
+        if (primaryAnchorIDComponent)
+            return `${this.elementWrapper.element.tagName}${this.symbolicIDSeparator}${primaryAnchorIDComponent}${this.symbolicIDSeparator}${uuid}`;
+        else
+            return this.generateSymbolicID();
+    }
+}
+
+export class ElementTracer extends ElementVisitor {
+
+    private strategy: [];
+    constructor(elementWrapper: ElementWrapper, configuration: ElementTracerConfiguration){
+        super(elementWrapper);
+        this.strategy = configuration.strategy;
+    }
+
+    preVisit(): any {
+        return this.requiresTracing();
+    }
+
+    /**
+     * @TODO Improvement: Implement the tracing mechanism using the Decorator Design pattern later
+     */
+    visit(): void {
+        if (this.preVisit()){
+            for(const property in this.strategy){
+                if (this.strategy[property]){
+                    switch(property){
+                        case 'click':
+                            if (this.isClickable()){
+                                this.elementWrapper.containerTemplate.tracing = true;
+                                this.elementWrapper.element.setAttribute("data-eventful-widget","true");
+                            }
+                            break;
+        
+                        case 'ngSubmit':
+                            if (this.isSubmitButton()){
+                                this.elementWrapper.containerTemplate.tracing = true;
+                            }
+                            break;
+
+                        case 'routerLink':
+                            if (this.isRouterLinkable()){
+                                this.elementWrapper.containerTemplate.tracing = true;
+                                this.elementWrapper.element.setAttribute("click_event_added","trace($event)");
+                                this.elementWrapper.element.setAttribute("data-eventful-widget","true");
+                            }
+                            break;
+    
+                        case 'href':
+                            if (this.isNonRouterLinkableAnchor()){
+                                this.elementWrapper.containerTemplate.tracing = true;
+                                this.elementWrapper.element.setAttribute("click_event_added","trace($event)");
+                                this.elementWrapper.element.setAttribute("data-eventful-widget","true");
+                            }
+                            break;
+    
+                        case 'focusOut':
+                            if (this.isMeaningfullyFocusable()){
+                                this.elementWrapper.containerTemplate.tracing = true;
+                                this.elementWrapper.containerTemplate.typing = true;
+                                this.elementWrapper.element.setAttribute("focusout_event_added",
+                                    `typing($event, '${this.elementWrapper.element.getAttribute("type")}')`);
+                                this.elementWrapper.element.setAttribute("data-eventful-widget","true");
+                            }
+                            break;
+    
+                        case 'change':
+                            if (this.isMeaningfullyChangeable()){
+                                // will be added later
+                            }
+                            break;
+    
+                        default:
+                            throw new Error("Unknown Tracing Configuration Option");
+                    }
+                }
+            }
+        }
+    }
+
+    postVisit(){
+        let elementContainerTemplate = this.elementWrapper.containerTemplate;
+        for(const property in this.strategy){
+            if (this.strategy[property]){
+                switch(property){
+                    case 'click':
+                        elementContainerTemplate.html = elementContainerTemplate.html.replace(
+                            /\(click\)="/g, 
+                            '(click)="trace($event);'
+                        );
+                        break;
+    
+                    case 'ngSubmit':
+                        elementContainerTemplate.html = elementContainerTemplate.html.replace(
+                            /\(ngsubmit\)="/g,
+                            '(ngsubmit)="trace($event);'
+                        );
+                        break;
+                    
+                    case 'routerLink': case 'href':
+                        elementContainerTemplate.html = elementContainerTemplate.html.replace(
+                            /click_event_added/gm,
+                            "(click)"
+                        );
+                        break;
+
+                    case 'focusOut':
+                        elementContainerTemplate.html = elementContainerTemplate.html.replace(
+                            /focusout_event_added/gm,
+                            "(focusout)"
+                        );
+                        break;
+
+                    case 'change':
+                        // will be added later
+                        break;
+
+                    default:
+                        throw new Error("Unknown Tracing Configuration Option");
+                }
+            }
+        }
+    }
+
+    requiresTracing(): boolean {
+        let tracingCondition: boolean = false;
+        for(const property in this.strategy){
+            if (this.strategy[property]){
+                switch(property){
+                    case 'click':
+                        tracingCondition = tracingCondition || this.isClickable();
+                        break;
+    
+                    case 'ngSubmit':
+                        tracingCondition = tracingCondition || this.isSubmitButton();
+                        break;
+                    
+                    case 'routerLink':
+                        tracingCondition = tracingCondition || this.isRouterLinkable();
+                        break;
+
+                    case 'href':
+                        tracingCondition = tracingCondition || this.isNonRouterLinkableAnchor();
+                        break;
+
+                    case 'focusOut':
+                        tracingCondition = tracingCondition || this.isMeaningfullyFocusable();
+                        break;
+
+                    case 'change':
+                        tracingCondition = tracingCondition || this.isMeaningfullyChangeable();
+                        break;
+
+                    default:
+                        throw new Error("Unknown Tracing Configuration Option");
+                }
+            }
+        }
+
+        return tracingCondition;
+    }
+
+    isClickable(): boolean {
+        return this.elementWrapper.element.getAttributeNames().includes("(click)");
+    }
+
+    isRouterLinkable(): boolean {
+        return this.elementWrapper.element.getAttributeNames().includes("[routerlink]")
+            || this.elementWrapper.element.getAttributeNames().includes("routerlink");
+    }
+
+    isSubmitButton(): boolean {
+        return (this.elementWrapper.element.tagName === "BUTTON" || 
+            (this.elementWrapper.element.tagName === "INPUT"))
+            && (this.elementWrapper.element.getAttribute("type") === "submit");
+    }
+
+    isNonRouterLinkableAnchor(): boolean {
+        return this.elementWrapper.element.getAttributeNames().includes("href") 
+            && this.elementWrapper.element.getAttribute("href") != "#";
+    }
+
+    isMeaningfullyFocusable(): boolean {
+        return (this.elementWrapper.element.tagName === "INPUT")
+            && (this.elementWrapper.element.getAttribute("type") === "text"
+                || this.elementWrapper.element.getAttribute("type") === "password"
+                || this.elementWrapper.element.getAttribute("type") === "email"
+                || this.elementWrapper.element.getAttribute("type") === "tel"
+                || this.elementWrapper.element.getAttribute("type") === "search"
+                || this.elementWrapper.element.getAttribute("type") === "date"
+                || this.elementWrapper.element.getAttribute("type") === "datetime-local"
+                || this.elementWrapper.element.getAttribute("type") === "time"
+                || this.elementWrapper.element.getAttribute("type") === "month"
+                || this.elementWrapper.element.getAttribute("type") === "week"
+                || this.elementWrapper.element.getAttribute("type") === "number"
+                || this.elementWrapper.element.getAttribute("type") === "range"
+                || this.elementWrapper.element.getAttribute("type") === "color");
+                // add file upload input later
+    }
+
+    isMeaningfullyChangeable(): boolean {
+        return (this.elementWrapper.element.tagName === "INPUT")
+            && (this.elementWrapper.element.getAttribute("type") === "radio"
+                || this.elementWrapper.element.getAttribute("type") === "checkbox");
+    }
+}
+
+export abstract class ElementTracerConfiguration {
+
+    protected _strategy: {};
+
+    abstract get strategy();
+
+    abstract set strategy(value: any);
+}
+
+export class JSONElementTracerConfiguration extends ElementTracerConfiguration {
+
+    constructor(private configurationFilePath: string){
+        super()
+        this.setStrategy();
+    }
+
+    get strategy(): {}{
+        return this._strategy;
+    }
+
+    setStrategy(){
+        if(!this.configurationFilePath){
+            this._strategy = JSON.parse(`{
+                "click": true,
+                "ngSubmit": true,
+                "routerLink": true,
+                "href": true,
+                "focusOut": true,
+                "change": false
+            }`);
+        }
+        else {
+            let configurationFile = fse.readFileSync(this.configurationFilePath,"utf-8");
+            this._strategy = JSON.parse(configurationFile.trim());
+        }
+    }
+}
+
+export class CLIElementTracerConfiguration extends ElementTracerConfiguration {
+    
+    get strategy(): any {
+        return this._strategy;
+    }
+    
+    set strategy(value: any) {
+        throw new Error('Method not implemented.');
+    }
+    
 }

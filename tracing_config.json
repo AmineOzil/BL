@@ -1,0 +1,8 @@
+{
+    "click": true,
+    "ngSubmit": true,
+    "routerLink": true,
+    "href": true,
+    "focusOut": true,
+    "change": false
+}
